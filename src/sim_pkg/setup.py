@@ -17,7 +17,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
 
         # Include all launch files
-        (os.path.join('share', package_name, 'launch'), glob('launch/*.launch.py')),
+        (os.path.join('share', package_name, 'launch'), glob('sim_pkg/launch/*.launch.py')),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -29,7 +29,8 @@ setup(
     entry_points={
         'console_scripts': [
             'box_cmd_node = sim_pkg.scripts.box_cmd_node:main',
-            'run_isaacsim = sim_pkg.scripts.run_isaacsim:main'
+            'run_isaacsim = sim_pkg.scripts.run_isaacsim:main',
+            'spawn_box = sim_pkg.scripts.spawn_box:main'
         ],
     },
 )
