@@ -37,5 +37,5 @@ def generate_launch_description():
         script,
         python_bin,
         isaac_proc,
-        box_node,
+        # box_node,
     ])

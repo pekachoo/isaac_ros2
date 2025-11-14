@@ -1,0 +1,111 @@
+#usda 1.0
+(
+    defaultPrim = "Arm"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+# -------- Articulation root --------
+def Xform "Arm" (
+    prepend apiSchemas = ["PhysxArticulationAPI", "PhysicsArticulationRootAPI"]
+)
+{
+    # Pin the root link to the world so the arm is anchored
+    uniform bool physxArticulation:fixRootLink = 1
+
+    # ---------- Base (dynamic link; NOT kinematic/static) ----------
+    def Cube "base" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsCollisionAPI"]
+    )
+    {
+        double size = 0.1
+        matrix4d xformOp:transform = (
+            (1, 0, 0, 0),
+            (0, 1, 0, 0),
+            (0, 0, 1, 0.55),
+            (0, 0, 0, 1)
+        )
+        uniform token[] xformOpOrder = ["xformOp:transform"]
+        color3f[] primvars:displayColor = [(0.25, 0.25, 0.25)]
+    }
+
+    # ---------- Link 1 ----------
+    def Cube "link1" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsCollisionAPI"]
+    )
+    {
+        double size = 1
+        # Slender bar via non-uniform scale (safe to ignore PhysX warning)
+        float3 xformOp:scale = (0.4, 0.05, 0.05)
+        matrix4d xformOp:transform = (
+            (1, 0, 0, 0.2),   # center offset so -X end is at shoulder
+            (0, 1, 0, 0.0),
+            (0, 0, 1, 0.55),
+            (0, 0, 0, 1)
+        )
+        uniform token[] xformOpOrder = ["xformOp:scale", "xformOp:transform"]
+        color3f[] primvars:displayColor = [(0.2, 0.6, 0.9)]
+    }
+
+    # ---------- Link 2 ----------
+    def Cube "link2" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysxRigidBodyAPI", "PhysicsCollisionAPI"]
+    )
+    {
+        double size = 1
+        float3 xformOp:scale = (0.3, 0.05, 0.05)
+        matrix4d xformOp:transform = (
+            (1, 0, 0, 0.35),  # center offset so -X end is at elbow
+            (0, 1, 0, 0.0),
+            (0, 0, 1, 0.55),
+            (0, 0, 0, 1)
+        )
+        uniform token[] xformOpOrder = ["xformOp:scale", "xformOp:transform"]
+        color3f[] primvars:displayColor = [(0.9, 0.55, 0.2)]
+    }
+
+    # ---------- Shoulder joint: base ↔ link1 ----------
+    def PhysicsRevoluteJoint "shoulder_joint" (
+        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+    )
+    {
+        # RELATIVE paths so you can reference the asset anywhere
+        rel physics:body0 = <../base>
+        rel physics:body1 = <../link1>
+
+        double3 physics:localPos0 = (0,    0, 0)    # base origin
+        double3 physics:localPos1 = (-0.2, 0, 0)    # link1 -X end
+        token physics:axis = "Z"
+        double physics:lowerLimit = -3.14159
+        double physics:upperLimit =  3.14159
+
+        token  physics:drive:angular:driveType   = "position"
+        double physics:drive:angular:stiffness   = 1200
+        double physics:drive:angular:damping     = 80
+        double physics:drive:angular:maxForce    = 1000
+        double physics:drive:angular:targetPosition = 0
+        double physics:drive:angular:targetVelocity = 0
+    }
+
+    # ---------- Elbow joint: link1 ↔ link2 ----------
+    def PhysicsRevoluteJoint "elbow_joint" (
+        prepend apiSchemas = ["PhysicsDriveAPI:angular"]
+    )
+    {
+        rel physics:body0 = <../link1>
+        rel physics:body1 = <../link2>
+
+        double3 physics:localPos0 = (0.2,  0, 0)    # link1 +X end
+        double3 physics:localPos1 = (-0.15,0, 0)    # link2 -X end
+        token physics:axis = "Z"
+        double physics:lowerLimit = -3.14159
+        double physics:upperLimit =  3.14159
+
+        token  physics:drive:angular:driveType   = "position"
+        double physics:drive:angular:stiffness   = 1200
+        double physics:drive:angular:damping     = 80
+        double physics:drive:angular:maxForce    = 1000
+        double physics:drive:angular:targetPosition = 0
+        double physics:drive:angular:targetVelocity = 0
+    }
+}
