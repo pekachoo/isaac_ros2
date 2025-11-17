@@ -6,7 +6,7 @@ from launch.substitutions import LaunchConfiguration, Command, PythonExpression
 from launch.conditions import IfCondition
 from launch_ros.substitutions import FindPackageShare
 
-
+#MAIN FILE FOR LAUNCHING THE WORKING BRACKET BOT
 # Declare all launch arguments corresponding to the bash script options
 launch_args = [
     DeclareLaunchArgument('version', default_value='5.1.0', description='Specify the version of Isaac Sim to use. Isaac Sim will be run from default install root folder for the specified version. Leave empty to use latest version of Isaac Sim.'),
