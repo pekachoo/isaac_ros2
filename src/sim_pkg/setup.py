@@ -31,7 +31,8 @@ setup(
             'box_cmd_node = sim_pkg.scripts.box_cmd_node:main',
             'run_isaacsim = sim_pkg.scripts.run_isaacsim:main',
             'spawn_box = sim_pkg.scripts.spawn_box:main',
-            'open_isaacsim_stage = sim_pkg.scripts.open_isaacsim_stage:main'
+            'open_isaacsim_stage = sim_pkg.scripts.open_isaacsim_stage:main',
+            'stabilizer_node = sim_pkg.scripts.stabilizer_pid:main'
         ],
     },
 )
