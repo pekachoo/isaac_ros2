@@ -14,7 +14,7 @@ class StbPID(Node):
         super().__init__('stb_pid')
 
         # PID params
-        self.declare_parameter('kP', 0.5)
+        self.declare_parameter('kP', -15)
         self.declare_parameter('kD', 0.0)
 
         self.pub = self.create_publisher(Twist, '/cmd_vel', 10)
@@ -29,9 +29,6 @@ class StbPID(Node):
         self.timer = self.create_timer(0.1, self._tick)
 
     def _tick(self):
-
-        kp = float(self.get_parameter('kP').value)
-        kd = float(self.get_parameter('kD').value)
 
         # Try to lookup transform
         try:
@@ -50,16 +47,27 @@ class StbPID(Node):
 
             lean_angle = roll
 
-            debug_msg = String()
-            debug_msg.data = f"Lean angle: {lean_angle:.4f} rad  ({lean_angle*180/3.14159:.2f}°)"
-            self.debug.publish(debug_msg)
-
         except Exception as e:
             self.get_logger().warn(f"TF lookup failed: {e}")
             return
 
+        forward_vel = self.computePID(lean_angle, 0)
         cmd = Twist()
+        cmd.linear.x = forward_vel
+        cmd.angular.z = 0.0
         self.pub.publish(cmd)
+
+        debug_msg = String()
+        debug_msg.data = f"pid: {forward_vel}"
+
+        self.debug.publish(debug_msg)
+
+    
+    def computePID(self, current, target):
+        kp = float(self.get_parameter('kP').value)
+        kd = float(self.get_parameter('kD').value)
+        error = target - current
+        return kp * error
 
 
 def main():
