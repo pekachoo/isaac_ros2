@@ -14,11 +14,14 @@ class StbPID(Node):
         super().__init__('stb_pid')
 
         # PID params
-        self.declare_parameter('kP', -5)
-        self.declare_parameter('kD', -1.5)
+        self.declare_parameter('kP', -3)
+        self.declare_parameter('kD', -8)
 
         self.prev_error = 0.0
         self.prev_time = None
+
+        self.prev_d = 0.0
+        self.alpha = 0.3
 
         self.latest_teleop_cmd = Twist()
 
@@ -95,7 +98,13 @@ class StbPID(Node):
 
 
         p_term = kp * error
-        d_term = kd * ((error - self.prev_error) / dt)
+
+        d_raw = (error - self.prev_error) / dt
+
+        # low-pass filter
+        d_term = kd * (self.alpha * d_raw + (1 - self.alpha) * self.prev_d)
+
+        self.prev_d = (self.alpha * d_raw + (1 - self.alpha) * self.prev_d)
 
         self.prev_error = error
         self.prev_time = now
