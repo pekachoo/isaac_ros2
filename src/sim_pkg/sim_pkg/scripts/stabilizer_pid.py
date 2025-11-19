@@ -63,10 +63,11 @@ class StbPID(Node):
             return
 
         forward_vel = self.latest_teleop_cmd.linear.x
+        angular_vel = self.latest_teleop_cmd.angular.z
         adjustment_vel = self.computePID(lean_angle, 0)
         cmd = Twist()
         cmd.linear.x = forward_vel + adjustment_vel
-        cmd.angular.z = 0.0
+        cmd.angular.z = angular_vel
         self.pub.publish(cmd)
 
         debug_msg = String()
