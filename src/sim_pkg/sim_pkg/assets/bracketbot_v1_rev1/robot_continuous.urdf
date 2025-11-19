@@ -183,7 +183,7 @@
     <parent link="base_extrusion"/>
     <child link="composite_part_1"/>
     <axis xyz="0 0 1"/>
-    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+    <limit effort="1000" velocity="400" lower="-3.141592653589793" upper="3.141592653589793"/>
   </joint>
   <!-- Link composite_part_1_2 -->
   <link name="composite_part_1_2">
@@ -215,6 +215,6 @@
     <parent link="base_extrusion"/>
     <child link="composite_part_1_2"/>
     <axis xyz="0 0 1"/>
-    <limit effort="10" velocity="10" lower="-3.141592653589793" upper="3.141592653589793"/>
+    <limit effort="1000" velocity="400" lower="-3.141592653589793" upper="3.141592653589793"/>
   </joint>
 </robot>
