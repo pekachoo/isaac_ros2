@@ -17,7 +17,15 @@ class StbPID(Node):
         self.declare_parameter('kP', -15)
         self.declare_parameter('kD', 0.0)
 
-        self.pub = self.create_publisher(Twist, '/cmd_vel', 10)
+        self.latest_teleop_cmd = Twist()
+
+        self.pub = self.create_publisher(Twist, '/cmd_vel_bb', 10)
+        self.teleop_sub = self.create_subscription(
+            Twist,
+            '/cmd_vel',
+            self.teleop_callback,
+            10
+        )
 
         # just a test publisher to see my node
         self.debug = self.create_publisher(String, '/stb_debug', 10)
@@ -27,6 +35,9 @@ class StbPID(Node):
         self.listener = TransformListener(self.buffer, self)
 
         self.timer = self.create_timer(0.1, self._tick)
+    
+    def teleop_callback(self, msg: Twist):
+        self.latest_teleop_cmd = msg
 
     def _tick(self):
 
@@ -51,14 +62,15 @@ class StbPID(Node):
             self.get_logger().warn(f"TF lookup failed: {e}")
             return
 
-        forward_vel = self.computePID(lean_angle, 0)
+        forward_vel = self.latest_teleop_cmd.linear.x
+        adjustment_vel = self.computePID(lean_angle, 0)
         cmd = Twist()
-        cmd.linear.x = forward_vel
+        cmd.linear.x = forward_vel + adjustment_vel
         cmd.angular.z = 0.0
         self.pub.publish(cmd)
 
         debug_msg = String()
-        debug_msg.data = f"pid: {forward_vel}"
+        debug_msg.data = f"pid: {adjustment_vel}"
 
         self.debug.publish(debug_msg)
 
