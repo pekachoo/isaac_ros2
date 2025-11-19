@@ -14,8 +14,11 @@ class StbPID(Node):
         super().__init__('stb_pid')
 
         # PID params
-        self.declare_parameter('kP', -15)
-        self.declare_parameter('kD', 0.0)
+        self.declare_parameter('kP', -5)
+        self.declare_parameter('kD', -1.5)
+
+        self.prev_error = 0.0
+        self.prev_time = None
 
         self.latest_teleop_cmd = Twist()
 
@@ -64,14 +67,14 @@ class StbPID(Node):
 
         forward_vel = self.latest_teleop_cmd.linear.x
         angular_vel = self.latest_teleop_cmd.angular.z
-        adjustment_vel = self.computePID(lean_angle, 0)
+        adjustment_vel, p_term, d_term = self.computePID(lean_angle, 0.05)
         cmd = Twist()
-        cmd.linear.x = forward_vel + adjustment_vel
+        cmd.linear.x = adjustment_vel
         cmd.angular.z = angular_vel
         self.pub.publish(cmd)
 
         debug_msg = String()
-        debug_msg.data = f"pid: {adjustment_vel}"
+        debug_msg.data = f"P: {p_term:.3f}, D: {d_term:.3f}, OUT: {adjustment_vel:.3f}"
 
         self.debug.publish(debug_msg)
 
@@ -79,8 +82,26 @@ class StbPID(Node):
     def computePID(self, current, target):
         kp = float(self.get_parameter('kP').value)
         kd = float(self.get_parameter('kD').value)
+
         error = target - current
-        return kp * error
+        
+        now = self.get_clock().now().nanoseconds / 1e9
+        if self.prev_time is None:
+            dt = 0.1 
+        else:
+            dt = now - self.prev_time
+            if dt <= 0:
+                dt = 1e-3
+
+
+        p_term = kp * error
+        d_term = kd * ((error - self.prev_error) / dt)
+
+        self.prev_error = error
+        self.prev_time = now
+
+        output = p_term + d_term
+        return output, p_term, d_term 
 
 
 def main():
