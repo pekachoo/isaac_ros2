@@ -14,8 +14,8 @@ class StbPID(Node):
         super().__init__('stb_pid')
 
         # PID params
-        self.declare_parameter('kP', -8)
-        self.declare_parameter('kD', -1.5)
+        self.declare_parameter('kP', -3)
+        self.declare_parameter('kD', -1)
 
         self.prev_error = 0.0
         self.prev_time = None
@@ -68,9 +68,9 @@ class StbPID(Node):
             self.get_logger().warn(f"TF lookup failed: {e}")
             return
 
-        forward_vel = self.latest_teleop_cmd.linear.x
+        forward_vel = float(self.latest_teleop_cmd.linear.x/10)
         angular_vel = self.latest_teleop_cmd.angular.z
-        adjustment_vel, p_term, d_term = self.computePID(lean_angle, 0)
+        adjustment_vel, p_term, d_term = self.computePID(lean_angle, 0.05)
         cmd = Twist()
         cmd.linear.x = adjustment_vel + forward_vel
         cmd.angular.z = angular_vel
