@@ -15,7 +15,7 @@ class StbPID(Node):
 
         # PID params
         self.declare_parameter('kP', -3)
-        self.declare_parameter('kD', -8)
+        self.declare_parameter('kD', -2)
 
         self.prev_error = 0.0
         self.prev_time = None
