@@ -14,7 +14,7 @@ class StbPID(Node):
         super().__init__('stb_pid')
 
         # PID params
-        self.declare_parameter('kP', -3)
+        self.declare_parameter('kP', -8)
         self.declare_parameter('kD', -1)
 
         self.prev_error = 0.0
