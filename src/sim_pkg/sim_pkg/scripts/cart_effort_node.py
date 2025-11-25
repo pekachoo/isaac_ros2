@@ -3,12 +3,11 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
 
-
 class CartEffortPublisher(Node):
     def __init__(self):
         super().__init__('cart_effort_pub')
 
-        self.force_value = 15.0
+        self.force_value = -1000.0
         
         self.joint_name = "slider_to_cart"
 
