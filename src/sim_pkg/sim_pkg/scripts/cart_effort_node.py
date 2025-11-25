@@ -1,23 +1,28 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Float32
+from sensor_msgs.msg import JointState
 
 
 class CartEffortPublisher(Node):
     def __init__(self):
         super().__init__('cart_effort_pub')
 
-        self.force_value = 15.0   # change this to whatever value you want!
-        self.pub = self.create_publisher(Float32, 'cart_effort', 10)
+        self.force_value = 15.0
+        
+        self.joint_name = "slider_to_cart"
 
-        self.timer = self.create_timer(0.02, self.publish_force)
+        self.pub = self.create_publisher(JointState, 'cart_effort', 10)
 
-        self.get_logger().info(f"Publishing constant effort: {self.force_value} N on /cart_effort")
+        self.timer = self.create_timer(0.02, self.publish_effort)
 
-    def publish_force(self):
-        msg = Float32()
-        msg.data = self.force_value
+    def publish_effort(self):
+        msg = JointState()
+        msg.name = [self.joint_name]
+        msg.position = []  
+        msg.velocity = []  
+        msg.effort = [self.force_value]
+
         self.pub.publish(msg)
 
 
@@ -29,5 +34,5 @@ def main(args=None):
     rclpy.shutdown()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
