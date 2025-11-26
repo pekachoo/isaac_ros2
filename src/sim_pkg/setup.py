@@ -33,7 +33,8 @@ setup(
             'spawn_box = sim_pkg.scripts.spawn_box:main',
             'open_isaacsim_stage = sim_pkg.scripts.open_isaacsim_stage:main',
             'stabilizer_node = sim_pkg.scripts.stabilizer_pid:main',
-            'cart_effort_node = sim_pkg.scripts.cart_effort_node:main'
+            'cart_effort_node = sim_pkg.scripts.cart_effort_node:main',
+            'cart_policy_node = sim_pkg.scripts.cart_policy:main'
         ],
     },
 )
