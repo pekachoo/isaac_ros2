@@ -16,7 +16,7 @@ class CartPolicy(Node):
 
         self.sub = self.create_subscription(
             JointState,
-            "/joint_states",
+            "/joint_states_read",
             self.joint_state_cb,
             10,
         )
@@ -42,17 +42,14 @@ class CartPolicy(Node):
             return
 
         debug_text = (
-            f"theta1={pole1_pos:.3f}, theta1_dot={pole1_vel:.3f}, "
-            f"theta2={pole2_pos:.3f}, theta2_dot={pole2_vel:.3f}, "
+            f"theta1={pole1_pos:.3f}, theta1_vel={pole1_vel:.3f}, "
+            f"theta2={pole2_pos:.3f}, theta2_vel={pole2_vel:.3f}, "
             f"x={cart_pos:.3f}, x_dot={cart_vel:.3f}"
         )
 
         msg_out = String()
         msg_out.data = debug_text
         self.debug_pub.publish(msg_out)
-
-        # Also log to console so you can see it with ros2 run
-        self.get_logger().info(debug_text)
 
 
 def main(args=None):
