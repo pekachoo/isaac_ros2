@@ -22,8 +22,6 @@ class CartPolicy(Node):
         self.pole1_joint = "cart_to_pole"
         self.pole2_joint = "pole_to_pendulum"
 
-        # ---- load policy.pt ----
-        # TODO: change this to the real path of your exported policy.pt
         POLICY_PATH = "/home/jliu/isaac_ws/src/sim_pkg/sim_pkg/assets/policies/policy.pt"
 
         try:
@@ -48,7 +46,7 @@ class CartPolicy(Node):
         )
 
         self.debug_pub = self.create_publisher(String, "debug", 10)
-        self.effort_pub = self.create_publisher(Float32, "cart_effort", 10)
+        self.effort_pub = self.create_publisher(JointState, "cart_effort", 10)
 
         self.get_logger().info("CartPolicy node started, waiting for /joint_states_read")
 
@@ -99,12 +97,18 @@ class CartPolicy(Node):
             # in case policy returns something weird like (tensor, extra_info)
             effort = float(action[0].view(-1)[0].item())
 
-        # ---- publish effort ----
-        eff_msg = Float32()
-        eff_msg.data = effort
-        self.effort_pub.publish(eff_msg)
+        # publish effort
+        js = JointState()
+        js.header.stamp = self.get_clock().now().to_msg()
 
-        # ---- debug string ----
+        js.name = [self.cart_joint]
+        js.position = []
+        js.velocity = []
+        js.effort = [effort]
+
+        self.effort_pub.publish(js)
+
+        # debug string
         debug_text = (
             f"theta1={pole1_pos_wrapped:.3f}, theta1_vel={pole1_vel:.3f}, "
             f"theta2={pole2_pos_wrapped:.3f}, theta2_vel={pole2_vel:.3f}, "
