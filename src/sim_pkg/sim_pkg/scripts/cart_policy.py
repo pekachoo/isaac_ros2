@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import math
 
 import rclpy
@@ -6,7 +5,6 @@ from rclpy.node import Node
 
 from sensor_msgs.msg import JointState
 from std_msgs.msg import String, Float32
-
 import torch
 
 

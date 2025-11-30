@@ -25,7 +25,6 @@ setup(
     maintainer_email='jliu6162@gmail.com',
     description='ROS 2 + Isaac Sim demo package',
     license='Apache-2.0',
-    tests_require=['pytest'],
     entry_points={
         'console_scripts': [
             'box_cmd_node = sim_pkg.scripts.box_cmd_node:main',
