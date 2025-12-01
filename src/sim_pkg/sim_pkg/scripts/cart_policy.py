@@ -104,7 +104,7 @@ class CartPolicy(Node):
         js.name = [self.cart_joint]
         js.position = []
         js.velocity = []
-        js.effort = [effort]
+        js.effort = [4.5*effort]
 
         self.effort_pub.publish(js)
 
