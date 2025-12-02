@@ -8,7 +8,7 @@ from std_msgs.msg import String
 import torch
 
 # MUST match TwoJointEnvAdaptableCfg.action_scale
-ACTION_SCALE = 9
+ACTION_SCALE = 30
 
 
 class CartPolicy(Node):
@@ -26,15 +26,8 @@ class CartPolicy(Node):
         self.latest_js: JointState | None = None
 
         # load policy
-        try:
-            self.policy = torch.jit.load(POLICY_PATH, map_location="cpu")
-            self.get_logger().info(f"Loaded TorchScript policy from: {POLICY_PATH}")
-        except Exception as e:
-            self.get_logger().warn(
-                f"torch.jit.load failed ({e}), trying torch.load instead..."
-            )
-            self.policy = torch.load(POLICY_PATH, map_location="cpu")
-            self.get_logger().info(f"Loaded policy with torch.load from: {POLICY_PATH}")
+        self.policy = torch.jit.load(POLICY_PATH, map_location="cpu")
+        self.get_logger().info(f"Loaded TorchScript policy from: {POLICY_PATH}")
 
         self.policy.eval()
 
@@ -101,29 +94,32 @@ class CartPolicy(Node):
             action = self.policy(obs)
 
         if isinstance(action, torch.Tensor):
-            a_norm = float(action.view(-1)[0].item())
+            a_raw = float(action.view(-1)[0].item())
         else:
-            a_norm = float(action[0].view(-1)[0].item())
+            a_raw = float(action[0].view(-1)[0].item())
 
         # match IsaacLab: effort = action * action_scale
+        a_norm = a_raw
         effort = a_norm * ACTION_SCALE
+        effort = min(effort, 400)
 
         # publish effort as JointState
         js = JointState()
         js.header.stamp = self.get_clock().now().to_msg()
         js.name = [self.cart_joint]
-        js.position = [cart_pos] 
-        js.velocity = [cart_vel]
+        js.position = [0.0] 
+        js.velocity = [0.0]
         js.effort = [effort]
-        print(effort)
-
         self.effort_pub.publish(js)
 
+        # debug_text = (
+        #     f"theta1={pole1_pos:.3f}, theta1_vel={pole1_vel:.3f}, "
+        #     f"theta2={pole2_pos:.3f}, theta2_vel={pole2_vel:.3f}, "
+        #     f"x={cart_pos:.3f}, x_dot={cart_vel:.3f}, "
+        #     f"a_norm={a_norm:.3f}, effort={effort:.3f}"
+        # )
         debug_text = (
-            f"theta1={pole1_pos:.3f}, theta1_vel={pole1_vel:.3f}, "
-            f"theta2={pole2_pos:.3f}, theta2_vel={pole2_vel:.3f}, "
-            f"x={cart_pos:.3f}, x_dot={cart_vel:.3f}, "
-            f"a_norm={a_norm:.3f}, effort={effort:.3f}"
+            f"a_norm={a_norm:.3f},"
         )
         msg_out = String()
         msg_out.data = debug_text
