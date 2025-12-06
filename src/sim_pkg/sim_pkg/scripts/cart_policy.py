@@ -8,7 +8,7 @@ from std_msgs.msg import String
 import torch
 
 # MUST match TwoJointEnvAdaptableCfg.action_scale
-ACTION_SCALE = 30
+ACTION_SCALE = 25
 
 
 class CartPolicy(Node):
