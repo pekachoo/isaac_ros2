@@ -15,7 +15,6 @@ class CartPolicy(Node):
     def __init__(self):
         super().__init__("cart_policy_node")
 
-        # Joint names must match your robot
         self.cart_joint = "slider_to_cart"
         self.pole1_joint = "cart_to_pole"
         self.pole2_joint = "pole_to_pendulum"
