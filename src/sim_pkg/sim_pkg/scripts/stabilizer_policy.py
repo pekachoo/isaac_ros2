@@ -35,7 +35,7 @@ class BracketBotPolicy(Node):
 
         # joint state input
         self.sub_js = self.create_subscription(
-            JointState, "/joint_states_read", self.joint_state_cb, 10
+            JointState, "/joint_states", self.joint_state_cb, 10
         )
 
         self.buffer = Buffer()
@@ -68,7 +68,6 @@ class BracketBotPolicy(Node):
     def control_step(self):
         if self.latest_js is None:
             return
-
         roll = self.read_roll_from_tf()
         if roll is None:
             return
@@ -125,10 +124,10 @@ class BracketBotPolicy(Node):
         out.header.stamp = self.get_clock().now().to_msg()
         out.name = [self.left_joint, self.right_joint]
 
-        out.velocity = [cmd_left, -cmd_right]
+        out.velocity = [1, -1]
         out.position = [0.0, 0.0]
         out.effort = [0.0, 0.0]
-
+        # print("publishing")
         self.cmd_pub.publish(out)
 
         dbg = String()
