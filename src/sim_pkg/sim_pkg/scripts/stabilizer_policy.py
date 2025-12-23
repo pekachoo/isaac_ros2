@@ -11,11 +11,10 @@ from std_msgs.msg import String
 from tf2_ros import Buffer, TransformListener
 from tf_transformations import euler_from_quaternion
 
-
-# matching isaaclab scaling
 ACTION_SCALE = 60.0
-
 MAX_CMD = 80.0
+MAX_DV_PER_S = 300.0
+CTRL_HZ = 120.0
 
 
 class BracketBotPolicy(Node):
@@ -33,7 +32,6 @@ class BracketBotPolicy(Node):
         self.latest_js: JointState | None = None
         self.latest_roll: float | None = None
 
-        # joint state input
         self.sub_js = self.create_subscription(
             JointState, "/joint_states", self.joint_state_cb, 10
         )
@@ -43,13 +41,15 @@ class BracketBotPolicy(Node):
         self.tf_parent = "World"
         self.tf_child = "base_extrusion"
 
-        # debug + command outputs
         self.debug_pub = self.create_publisher(String, "/bb_policy_debug", 10)
-
         self.cmd_pub = self.create_publisher(JointState, "/wheel_vel_cmd", 10)
 
-        # control loop
-        self.timer = self.create_timer(1.0 / 60.0, self.control_step)
+        self.ctrl_dt = 1.0 / CTRL_HZ
+        self.prev_cmd_left = 0.0
+        self.prev_cmd_right = 0.0
+        self.prev_t = self.get_clock().now()
+
+        self.timer = self.create_timer(1.0 / CTRL_HZ, self.control_step)
 
     def joint_state_cb(self, msg: JointState):
         self.latest_js = msg
@@ -82,23 +82,22 @@ class BracketBotPolicy(Node):
         li = name_to_idx[self.left_joint]
         ri = name_to_idx[self.right_joint]
 
-        # wheel velocities
         left_vel = float(msg.velocity[li]) if li < len(msg.velocity) else 0.0
         right_vel = float(msg.velocity[ri]) if ri < len(msg.velocity) else 0.0
+        # print(left_vel)
 
-        #manually build tensor for one bb, dont need to worry abt more
         obs = torch.tensor(
             [[
-                0.0, 0.0,        # joint_pos forced to 0
-                left_vel, right_vel,  # joint_vel
-                roll,            # roll
+                left_vel, right_vel,
+                roll,
             ]],
             dtype=torch.float32,
         )
+        print(obs)
 
         with torch.no_grad():
             act = self.policy(obs)
-
+        print(act)
         if isinstance(act, torch.Tensor):
             act = act.view(-1)
         else:
@@ -108,26 +107,39 @@ class BracketBotPolicy(Node):
             self.get_logger().error(f"Policy returned {act.numel()} actions, expected 2")
             return
 
-        a_left = float(act[0].item())
-        a_right = float(act[1].item())
+        act_normalized = torch.tanh(act)
 
-        # match IsaacLab scaling
+        a_left = float(act_normalized[0].item())
+        a_right = float(act_normalized[1].item())
+
         cmd_left = a_left * ACTION_SCALE
         cmd_right = a_right * ACTION_SCALE
 
-        # clamp
         cmd_left = max(-MAX_CMD, min(MAX_CMD, cmd_left))
         cmd_right = max(-MAX_CMD, min(MAX_CMD, cmd_right))
 
-        # publish
+        now = self.get_clock().now()
+        dt = (now - self.prev_t).nanoseconds * 1e-9
+        if dt <= 0.0 or dt > 0.5:
+            dt = self.ctrl_dt
+
+        max_dv = MAX_DV_PER_S * dt
+
+        cmd_left = max(self.prev_cmd_left - max_dv, min(self.prev_cmd_left + max_dv, cmd_left))
+        cmd_right = max(self.prev_cmd_right - max_dv, min(self.prev_cmd_right + max_dv, cmd_right))
+
+        self.prev_cmd_left = cmd_left
+        self.prev_cmd_right = cmd_right
+        self.prev_t = now
+
         out = JointState()
         out.header.stamp = self.get_clock().now().to_msg()
         out.name = [self.left_joint, self.right_joint]
 
-        out.velocity = [1, -1]
+        out.velocity = [cmd_left, -cmd_right]
+        print(out.velocity)
         out.position = [0.0, 0.0]
         out.effort = [0.0, 0.0]
-        # print("publishing")
         self.cmd_pub.publish(out)
 
         dbg = String()
