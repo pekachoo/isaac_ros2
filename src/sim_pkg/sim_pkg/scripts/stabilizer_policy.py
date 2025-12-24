@@ -14,7 +14,7 @@ from tf_transformations import euler_from_quaternion
 ACTION_SCALE = 60.0
 MAX_CMD = 999.0
 MAX_DV_PER_S = 10000000.0
-CTRL_HZ = 60.0
+CTRL_HZ = 120.0
 
 
 class BracketBotPolicy(Node):
@@ -49,10 +49,11 @@ class BracketBotPolicy(Node):
         self.prev_cmd_right = 0.0
         self.prev_t = self.get_clock().now()
 
-        self.timer = self.create_timer(1.0 / CTRL_HZ, self.control_step)
+        # self.timer = self.create_timer(1.0 / CTRL_HZ, self.control_step)
 
     def joint_state_cb(self, msg: JointState):
         self.latest_js = msg
+        self.control_step()
 
     def read_roll_from_tf(self) -> float | None:
         try:
