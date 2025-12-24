@@ -93,8 +93,8 @@ class BracketBotPolicy(Node):
             ]],
             dtype=torch.float32,
         )
-        print(obs)
-
+        # print(obs)
+        # obs = obs * 0.0
         with torch.no_grad():
             act = self.policy(obs)
         print(act)
@@ -107,7 +107,8 @@ class BracketBotPolicy(Node):
             self.get_logger().error(f"Policy returned {act.numel()} actions, expected 2")
             return
 
-        act_normalized = torch.tanh(act)
+        # act_normalized = torch.tanh(act)
+        act_normalized = act
 
         a_left = float(act_normalized[0].item())
         a_right = float(act_normalized[1].item())
