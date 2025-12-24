@@ -12,8 +12,8 @@ from tf2_ros import Buffer, TransformListener
 from tf_transformations import euler_from_quaternion
 
 ACTION_SCALE = 60.0
-MAX_CMD = 80.0
-MAX_DV_PER_S = 300.0
+MAX_CMD = 999.0
+MAX_DV_PER_S = 10000000.0
 CTRL_HZ = 120.0
 
 
