@@ -87,6 +87,9 @@ class BracketBotPolicy(Node):
         right_vel = float(msg.velocity[ri]) if ri < len(msg.velocity) else 0.0
         # print(left_vel)
 
+        #tensor([[ 0.0674, -0.0212,  0.0003]], device='cuda:0')
+        #vel_targets: tensor([[ 0.2192, -0.1814]], device='cuda:0')  
+
         obs = torch.tensor(
             [[
                 left_vel, right_vel,
@@ -108,8 +111,8 @@ class BracketBotPolicy(Node):
             self.get_logger().error(f"Policy returned {act.numel()} actions, expected 2")
             return
 
-        # act_normalized = torch.tanh(act)
-        act_normalized = act
+        act_normalized = torch.tanh(act)
+        # act_normalized = act
 
         a_left = float(act_normalized[0].item())
         a_right = float(act_normalized[1].item())
