@@ -16,6 +16,11 @@ MAX_CMD = 999.0
 MAX_DV_PER_S = 10000000.0
 CTRL_HZ = 120.0
 
+ACTIVATE_ANGLE_DEG = 5.0 
+DEACTIVATE_ANGLE_DEG = 1.0
+DEACTIVATE_HOLD_SEC = 1.0
+ZERO_CMD_WHEN_INACTIVE = True #temp, only for later if I wanna try saving last command
+
 
 class BracketBotPolicy(Node):
     def __init__(self):
@@ -49,6 +54,13 @@ class BracketBotPolicy(Node):
         self.prev_cmd_right = 0.0
         self.prev_t = self.get_clock().now()
 
+        # precompute threshold in radians
+        self.on_rad  = math.radians(ACTIVATE_ANGLE_DEG)
+        self.off_rad = math.radians(DEACTIVATE_ANGLE_DEG)
+
+        self.policy_active = False
+        self.below_off_since = None
+
         # self.timer = self.create_timer(1.0 / CTRL_HZ, self.control_step)
 
     def joint_state_cb(self, msg: JointState):
@@ -66,12 +78,67 @@ class BracketBotPolicy(Node):
             self.get_logger().warn(f"TF lookup failed: {e}")
             return None
 
+    def publish_zero_cmd(self):
+        """Publish a zero velocity command (and reset rate limiter state)."""
+        self.prev_cmd_left = 0.0
+        self.prev_cmd_right = 0.0
+        self.prev_t = self.get_clock().now()
+
+        out = JointState()
+        out.header.stamp = self.get_clock().now().to_msg()
+        out.name = [self.left_joint, self.right_joint]
+        out.velocity = [0.0, 0.0]
+        out.position = [0.0, 0.0]
+        out.effort = [0.0, 0.0]
+        self.cmd_pub.publish(out)
+
     def control_step(self):
         if self.latest_js is None:
             return
         roll = self.read_roll_from_tf()
         if roll is None:
             return
+
+        # only run policy if the threshold passes it
+        now = self.get_clock().now()
+        abs_roll = abs(roll)
+
+        if not self.policy_active and abs_roll >= self.on_rad:
+            self.policy_active = True
+            self.below_off_since = None
+
+        if self.policy_active:
+            if abs_roll <= self.off_rad:
+                if self.below_off_since is None:
+                    self.below_off_since = now
+                else:
+                    dt_below = (now - self.below_off_since).nanoseconds * 1e-9
+                    if dt_below >= DEACTIVATE_HOLD_SEC:
+                        self.policy_active = False
+                        self.below_off_since = None
+
+                        if ZERO_CMD_WHEN_INACTIVE:
+                            self.publish_zero_cmd()
+                        dbg = String()
+                        dbg.data = f"DEACTIVATED | roll={roll:+.3f} rad ({math.degrees(roll):+.2f} deg)"
+                        self.debug_pub.publish(dbg)
+                        return
+            else:
+                # popped back above off threshold -> reset timer
+                self.below_off_since = None
+
+        # if not active, do your inactive behavior
+        if not self.policy_active:
+            if ZERO_CMD_WHEN_INACTIVE:
+                self.publish_zero_cmd()
+            dbg = String()
+            dbg.data = (
+                f"INACTIVE | roll={roll:+.3f} rad ({math.degrees(roll):+.2f} deg) "
+                f"on={ACTIVATE_ANGLE_DEG:.1f} off={DEACTIVATE_ANGLE_DEG:.1f} hold={DEACTIVATE_HOLD_SEC:.1f}s"
+            )
+            self.debug_pub.publish(dbg)
+            return
+
 
         msg = self.latest_js
         name_to_idx = {n: i for i, n in enumerate(msg.name)}
@@ -85,10 +152,6 @@ class BracketBotPolicy(Node):
 
         left_vel = float(msg.velocity[li]) if li < len(msg.velocity) else 0.0
         right_vel = float(msg.velocity[ri]) if ri < len(msg.velocity) else 0.0
-        # print(left_vel)
-
-        #tensor([[ 0.0674, -0.0212,  0.0003]], device='cuda:0')
-        #vel_targets: tensor([[ 0.2192, -0.1814]], device='cuda:0')  
 
         obs = torch.tensor(
             [[
@@ -97,11 +160,10 @@ class BracketBotPolicy(Node):
             ]],
             dtype=torch.float32,
         )
-        # print(obs)
-        # obs = obs * 0.0
+
         with torch.no_grad():
             act = self.policy(obs)
-        print(act)
+
         if isinstance(act, torch.Tensor):
             act = act.view(-1)
         else:
@@ -112,7 +174,6 @@ class BracketBotPolicy(Node):
             return
 
         act_normalized = torch.tanh(act)
-        # act_normalized = act
 
         a_left = float(act_normalized[0].item())
         a_right = float(act_normalized[1].item())
@@ -140,15 +201,17 @@ class BracketBotPolicy(Node):
         out = JointState()
         out.header.stamp = self.get_clock().now().to_msg()
         out.name = [self.left_joint, self.right_joint]
-
         out.velocity = [cmd_left, -cmd_right]
-        print(out.velocity)
         out.position = [0.0, 0.0]
         out.effort = [0.0, 0.0]
         self.cmd_pub.publish(out)
 
         dbg = String()
-        dbg.data = f"roll={roll:+.3f} left_vel={left_vel:+.3f} right_vel={right_vel:+.3f} a=[{a_left:+.3f},{a_right:+.3f}] cmd=[{cmd_left:+.1f},{cmd_right:+.1f}]"
+        dbg.data = (
+            f"ACTIVE | roll={roll:+.3f} rad ({math.degrees(roll):+.2f} deg) "
+            f"left_vel={left_vel:+.3f} right_vel={right_vel:+.3f} "
+            f"a=[{a_left:+.3f},{a_right:+.3f}] cmd=[{cmd_left:+.1f},{cmd_right:+.1f}]"
+        )
         self.debug_pub.publish(dbg)
 
 
