@@ -153,6 +153,8 @@ class BracketBotPolicy(Node):
         left_vel = float(msg.velocity[li]) if li < len(msg.velocity) else 0.0
         right_vel = float(msg.velocity[ri]) if ri < len(msg.velocity) else 0.0
 
+        print(f"roll: {roll}, left_vel: {left_vel}, right_vel: {right_vel}")
+
         obs = torch.tensor(
             [[
                 left_vel, right_vel,
@@ -180,6 +182,7 @@ class BracketBotPolicy(Node):
 
         cmd_left = a_left * ACTION_SCALE
         cmd_right = a_right * ACTION_SCALE
+        # print(cmd_left, cmd_right)
 
         cmd_left = max(-MAX_CMD, min(MAX_CMD, cmd_left))
         cmd_right = max(-MAX_CMD, min(MAX_CMD, cmd_right))
