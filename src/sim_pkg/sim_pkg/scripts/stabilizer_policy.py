@@ -16,9 +16,9 @@ MAX_CMD = 999.0
 MAX_DV_PER_S = 10000000.0
 CTRL_HZ = 120.0
 
-ACTIVATE_ANGLE_DEG = 5.0 
+ACTIVATE_ANGLE_DEG = 0.0 
 DEACTIVATE_ANGLE_DEG = 1.0
-DEACTIVATE_HOLD_SEC = 1.0
+DEACTIVATE_HOLD_SEC = 99999.0
 ZERO_CMD_WHEN_INACTIVE = True #temp, only for later if I wanna try saving last command
 
 
@@ -93,6 +93,11 @@ class BracketBotPolicy(Node):
         self.cmd_pub.publish(out)
 
     def control_step(self):
+        now = self.get_clock().now()
+        dt = (now - self.prev_t).nanoseconds * 1e-9
+        self.prev_t = now
+        print(f"control_dt={dt:.6f}")
+
         if self.latest_js is None:
             return
         roll = self.read_roll_from_tf()
@@ -162,6 +167,8 @@ class BracketBotPolicy(Node):
             ]],
             dtype=torch.float32,
         )
+
+        # print(obs)
 
         with torch.no_grad():
             act = self.policy(obs)
