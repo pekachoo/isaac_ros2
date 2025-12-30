@@ -3,6 +3,7 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Imu
+import math
 
 class ImuPrinter(Node):
     def __init__(self):
@@ -24,6 +25,17 @@ class ImuPrinter(Node):
             f"ACC  [x y z] = [{a.x:+.3f}, {a.y:+.3f}, {a.z:+.3f}]  "
             f"GYRO [x y z] = [{g.x:+.3f}, {g.y:+.3f}, {g.z:+.3f}]  "
             f"QUAT [x y z w] = [{q.x:+.3f}, {q.y:+.3f}, {q.z:+.3f}, {q.w:+.3f}]"
+        )
+
+        ax, ay, az = a.x, a.y, a.z
+
+        pitch = math.atan2(ay, ax)  # forward/back tilt
+        tilt_mag = math.atan2(math.sqrt(ay*ay + az*az), ax)  # total tilt from upright
+
+        self.get_logger().info(
+            f"ax={ax:+.3f} ay={ay:+.3f} az={az:+.3f} | "
+            f"pitch={math.degrees(pitch):+.1f} deg | "
+            f"tilt={math.degrees(tilt_mag):.1f} deg"
         )
 
 def main():
