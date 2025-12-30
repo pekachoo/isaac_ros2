@@ -35,7 +35,8 @@ setup(
             'cart_effort_node = sim_pkg.scripts.cart_effort_node:main',
             'cart_policy_node = sim_pkg.scripts.cart_policy:main',
             'cart_debug_node = sim_pkg.scripts.cart_debug_sub:main',
-            'stabilizer_policy = sim_pkg.scripts.stabilizer_policy:main'
+            'stabilizer_policy = sim_pkg.scripts.stabilizer_policy:main',
+            'imu_test = sim_pkg.scripts.imu_test:main'
         ],
     },
 )
