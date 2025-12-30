@@ -6,20 +6,18 @@ import torch
 import rclpy
 from rclpy.node import Node
 
-from sensor_msgs.msg import JointState
+from sensor_msgs.msg import JointState, Imu
 from std_msgs.msg import String
-from tf2_ros import Buffer, TransformListener
-from tf_transformations import euler_from_quaternion
 
 ACTION_SCALE = 60.0
 MAX_CMD = 999.0
 MAX_DV_PER_S = 10000000.0
 CTRL_HZ = 120.0
 
-ACTIVATE_ANGLE_DEG = 0.0 
+ACTIVATE_ANGLE_DEG = 0.0
 DEACTIVATE_ANGLE_DEG = 1.0
 DEACTIVATE_HOLD_SEC = 99999.0
-ZERO_CMD_WHEN_INACTIVE = True #temp, only for later if I wanna try saving last command
+ZERO_CMD_WHEN_INACTIVE = True  # temp
 
 
 class BracketBotPolicy(Node):
@@ -35,16 +33,12 @@ class BracketBotPolicy(Node):
         self.get_logger().info(f"Loaded TorchScript policy: {policy_path}")
 
         self.latest_js: JointState | None = None
-        self.latest_roll: float | None = None
+        self.latest_imu: Imu | None = None
 
         self.sub_js = self.create_subscription(
             JointState, "/joint_states", self.joint_state_cb, 10
         )
-
-        self.buffer = Buffer()
-        self.listener = TransformListener(self.buffer, self)
-        self.tf_parent = "World"
-        self.tf_child = "base_extrusion"
+        self.sub_imu = self.create_subscription(Imu, "/imu/data", self.imu_cb, 10)
 
         self.debug_pub = self.create_publisher(String, "/bb_policy_debug", 10)
         self.cmd_pub = self.create_publisher(JointState, "/wheel_vel_cmd", 10)
@@ -52,40 +46,54 @@ class BracketBotPolicy(Node):
         self.ctrl_dt = 1.0 / CTRL_HZ
         self.prev_cmd_left = 0.0
         self.prev_cmd_right = 0.0
-        self.prev_t = self.get_clock().now()
 
-        # precompute threshold in radians
-        self.on_rad  = math.radians(ACTIVATE_ANGLE_DEG)
+        t0 = self.get_clock().now()
+        self.prev_step_t = t0
+        self.prev_lim_t = t0
+
+        # thresholds in radians
+        self.on_rad = math.radians(ACTIVATE_ANGLE_DEG)
         self.off_rad = math.radians(DEACTIVATE_ANGLE_DEG)
 
         self.policy_active = False
         self.below_off_since = None
 
-        # self.timer = self.create_timer(1.0 / CTRL_HZ, self.control_step)
+        self.timer = self.create_timer(self.ctrl_dt, self.control_step)
 
     def joint_state_cb(self, msg: JointState):
         self.latest_js = msg
-        self.control_step()
 
-    def read_roll_from_tf(self) -> float | None:
-        try:
-            t = self.buffer.lookup_transform(self.tf_parent, self.tf_child, rclpy.time.Time())
-            q = t.transform.rotation
-            quat = [q.x, q.y, q.z, q.w]
-            roll, pitch, yaw = euler_from_quaternion(quat)
-            return float(roll)
-        except Exception as e:
-            self.get_logger().warn(f"TF lookup failed: {e}")
+    def imu_cb(self, msg: Imu):
+        self.latest_imu = msg
+
+    def read_pitch_from_imu(self) -> float | None:
+        if self.latest_imu is None:
             return None
 
+        imu = self.latest_imu
+        q = imu.orientation
+
+        orientation_nonzero = not (q.w == 0.0 and q.x == 0.0 and q.y == 0.0 and q.z == 0.0)
+
+        if orientation_nonzero:
+            sinp = 2.0 * (q.w * q.y - q.z * q.x)
+            sinp = max(-1.0, min(1.0, sinp))
+            return float(math.asin(sinp))
+
+        # ax = imu.linear_acceleration.x
+        # ay = imu.linear_acceleration.y
+        # return float(math.atan2(ay, ax))
+
     def publish_zero_cmd(self):
-        """Publish a zero velocity command (and reset rate limiter state)."""
         self.prev_cmd_left = 0.0
         self.prev_cmd_right = 0.0
-        self.prev_t = self.get_clock().now()
+
+        t = self.get_clock().now()
+        self.prev_step_t = t
+        self.prev_lim_t = t
 
         out = JointState()
-        out.header.stamp = self.get_clock().now().to_msg()
+        out.header.stamp = t.to_msg()
         out.name = [self.left_joint, self.right_joint]
         out.velocity = [0.0, 0.0]
         out.position = [0.0, 0.0]
@@ -94,26 +102,25 @@ class BracketBotPolicy(Node):
 
     def control_step(self):
         now = self.get_clock().now()
-        dt = (now - self.prev_t).nanoseconds * 1e-9
-        self.prev_t = now
-        print(f"control_dt={dt:.6f}")
+        step_dt = (now - self.prev_step_t).nanoseconds * 1e-9
+        self.prev_step_t = now
 
-        if self.latest_js is None:
-            return
-        roll = self.read_roll_from_tf()
-        if roll is None:
+        if self.latest_js is None or self.latest_imu is None:
             return
 
-        # only run policy if the threshold passes it
-        now = self.get_clock().now()
-        abs_roll = abs(roll)
+        pitch = self.read_pitch_from_imu()
+        if pitch is None:
+            return
 
-        if not self.policy_active and abs_roll >= self.on_rad:
+        abs_pitch = abs(pitch)
+
+        # activation gating
+        if not self.policy_active and abs_pitch >= self.on_rad:
             self.policy_active = True
             self.below_off_since = None
 
         if self.policy_active:
-            if abs_roll <= self.off_rad:
+            if abs_pitch <= self.off_rad:
                 if self.below_off_since is None:
                     self.below_off_since = now
                 else:
@@ -121,54 +128,41 @@ class BracketBotPolicy(Node):
                     if dt_below >= DEACTIVATE_HOLD_SEC:
                         self.policy_active = False
                         self.below_off_since = None
-
                         if ZERO_CMD_WHEN_INACTIVE:
                             self.publish_zero_cmd()
                         dbg = String()
-                        dbg.data = f"DEACTIVATED | roll={roll:+.3f} rad ({math.degrees(roll):+.2f} deg)"
+                        dbg.data = (
+                            f"DEACTIVATED | pitch={pitch:+.3f} rad ({math.degrees(pitch):+.2f} deg)"
+                        )
                         self.debug_pub.publish(dbg)
                         return
             else:
-                # popped back above off threshold -> reset timer
                 self.below_off_since = None
 
-        # if not active, do your inactive behavior
         if not self.policy_active:
             if ZERO_CMD_WHEN_INACTIVE:
                 self.publish_zero_cmd()
             dbg = String()
             dbg.data = (
-                f"INACTIVE | roll={roll:+.3f} rad ({math.degrees(roll):+.2f} deg) "
+                f"INACTIVE | pitch={pitch:+.3f} rad ({math.degrees(pitch):+.2f} deg) "
                 f"on={ACTIVATE_ANGLE_DEG:.1f} off={DEACTIVATE_ANGLE_DEG:.1f} hold={DEACTIVATE_HOLD_SEC:.1f}s"
             )
             self.debug_pub.publish(dbg)
             return
 
-
         msg = self.latest_js
         name_to_idx = {n: i for i, n in enumerate(msg.name)}
-
         if self.left_joint not in name_to_idx or self.right_joint not in name_to_idx:
             self.get_logger().warn("Missing drive_left/drive_right in JointState")
             return
 
         li = name_to_idx[self.left_joint]
         ri = name_to_idx[self.right_joint]
-
         left_vel = float(msg.velocity[li]) if li < len(msg.velocity) else 0.0
         right_vel = float(msg.velocity[ri]) if ri < len(msg.velocity) else 0.0
 
-        print(f"roll: {roll}, left_vel: {left_vel}, right_vel: {right_vel}")
-
-        obs = torch.tensor(
-            [[
-                left_vel, right_vel,
-                roll,
-            ]],
-            dtype=torch.float32,
-        )
-
-        # print(obs)
+        # Policy input
+        obs = torch.tensor([[left_vel, right_vel, pitch]], dtype=torch.float32)
 
         with torch.no_grad():
             act = self.policy(obs)
@@ -182,43 +176,39 @@ class BracketBotPolicy(Node):
             self.get_logger().error(f"Policy returned {act.numel()} actions, expected 2")
             return
 
+        # action -> command
         act_normalized = torch.tanh(act)
-
         a_left = float(act_normalized[0].item())
         a_right = float(act_normalized[1].item())
 
-        cmd_left = a_left * ACTION_SCALE
-        cmd_right = a_right * ACTION_SCALE
-        # print(cmd_left, cmd_right)
+        cmd_left = max(-MAX_CMD, min(MAX_CMD, a_left * ACTION_SCALE))
+        cmd_right = max(-MAX_CMD, min(MAX_CMD, a_right * ACTION_SCALE))
 
-        cmd_left = max(-MAX_CMD, min(MAX_CMD, cmd_left))
-        cmd_right = max(-MAX_CMD, min(MAX_CMD, cmd_right))
-
-        now = self.get_clock().now()
-        dt = (now - self.prev_t).nanoseconds * 1e-9
+        # limiter dt
+        dt = (now - self.prev_lim_t).nanoseconds * 1e-9
         if dt <= 0.0 or dt > 0.5:
             dt = self.ctrl_dt
+        self.prev_lim_t = now
 
         max_dv = MAX_DV_PER_S * dt
-
         cmd_left = max(self.prev_cmd_left - max_dv, min(self.prev_cmd_left + max_dv, cmd_left))
         cmd_right = max(self.prev_cmd_right - max_dv, min(self.prev_cmd_right + max_dv, cmd_right))
 
         self.prev_cmd_left = cmd_left
         self.prev_cmd_right = cmd_right
-        self.prev_t = now
 
         out = JointState()
-        out.header.stamp = self.get_clock().now().to_msg()
+        out.header.stamp = now.to_msg()
         out.name = [self.left_joint, self.right_joint]
+        # keep your original sign convention
         out.velocity = [cmd_left, -cmd_right]
         out.position = [0.0, 0.0]
         out.effort = [0.0, 0.0]
         self.cmd_pub.publish(out)
-
+        print(pitch)
         dbg = String()
         dbg.data = (
-            f"ACTIVE | roll={roll:+.3f} rad ({math.degrees(roll):+.2f} deg) "
+            f"ACTIVE | pitch={pitch:+.3f} rad ({math.degrees(pitch):+.2f} deg) "
             f"left_vel={left_vel:+.3f} right_vel={right_vel:+.3f} "
             f"a=[{a_left:+.3f},{a_right:+.3f}] cmd=[{cmd_left:+.1f},{cmd_right:+.1f}]"
         )

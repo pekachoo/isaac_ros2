@@ -56,6 +56,13 @@ def launch_setup(context):
             'exclude_install_path': LaunchConfiguration('exclude_install_path')
         }]
     )
+
+    madgwick_node = Node(
+        package='imu_filter_madgwick', executable='imu_filter_madgwick_node',
+        parameters=[{
+            'use_mag': False}]
+    )
+
     return [isaacsim_node]
 
 def generate_launch_description():
