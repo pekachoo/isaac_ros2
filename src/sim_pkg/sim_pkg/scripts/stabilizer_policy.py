@@ -75,15 +75,16 @@ class BracketBotPolicy(Node):
 
         orientation_nonzero = not (q.w == 0.0 and q.x == 0.0 and q.y == 0.0 and q.z == 0.0)
 
-        if orientation_nonzero:
-            sinp = 2.0 * (q.w * q.y - q.z * q.x)
-            sinp = max(-1.0, min(1.0, sinp))
-            return float(math.asin(sinp))
-
-        # ax = imu.linear_acceleration.x
-        # ay = imu.linear_acceleration.y
-        # return float(math.atan2(ay, ax))
-
+        if not orientation_nonzero:
+            return None
+        
+        # For +X=DOWN, +Y=FORWARD, +Z=LEFT
+        sinp = 2.0 * (q.w * q.x + q.y * q.z)
+        sinp = max(-1.0, min(1.0, sinp))
+        pitch = math.asin(sinp)
+        
+        return float(pitch)
+    
     def publish_zero_cmd(self):
         self.prev_cmd_left = 0.0
         self.prev_cmd_right = 0.0
