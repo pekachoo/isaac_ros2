@@ -12,7 +12,7 @@ from std_msgs.msg import String
 ACTION_SCALE = 60.0
 MAX_CMD = 999.0
 MAX_DV_PER_S = 10000000.0
-CTRL_HZ = 120.0
+CTRL_HZ = 60.0
 
 ACTIVATE_ANGLE_DEG = 0.0
 DEACTIVATE_ANGLE_DEG = 1.0
@@ -66,12 +66,13 @@ class BracketBotPolicy(Node):
     def imu_cb(self, msg: Imu):
         self.latest_imu = msg
 
-    def read_pitch_from_imu(self) -> float | None:
+    def read_obs_from_imu(self) -> float | None:
         if self.latest_imu is None:
             return None
 
         imu = self.latest_imu
         q = imu.orientation
+        wz = imu.angular_velocity.z 
 
         orientation_nonzero = not (q.w == 0.0 and q.x == 0.0 and q.y == 0.0 and q.z == 0.0)
 
@@ -83,7 +84,7 @@ class BracketBotPolicy(Node):
         sinp = max(-1.0, min(1.0, sinp))
         pitch = math.asin(sinp)
         
-        return float(pitch)
+        return float(pitch), float(wz)
     
     def publish_zero_cmd(self):
         self.prev_cmd_left = 0.0
@@ -109,9 +110,10 @@ class BracketBotPolicy(Node):
         if self.latest_js is None or self.latest_imu is None:
             return
 
-        pitch = self.read_pitch_from_imu()
+        pitch, wz = self.read_obs_from_imu()
         if pitch is None:
             return
+        print(wz) 
 
         abs_pitch = abs(pitch)
 
@@ -163,7 +165,7 @@ class BracketBotPolicy(Node):
         right_vel = float(msg.velocity[ri]) if ri < len(msg.velocity) else 0.0
 
         # Policy input
-        obs = torch.tensor([[left_vel, right_vel, pitch]], dtype=torch.float32)
+        obs = torch.tensor([[left_vel, right_vel, pitch, wz]], dtype=torch.float32)
 
         with torch.no_grad():
             act = self.policy(obs)
@@ -206,7 +208,7 @@ class BracketBotPolicy(Node):
         out.position = [0.0, 0.0]
         out.effort = [0.0, 0.0]
         self.cmd_pub.publish(out)
-        print(pitch)
+        # print(pitch)
         dbg = String()
         dbg.data = (
             f"ACTIVE | pitch={pitch:+.3f} rad ({math.degrees(pitch):+.2f} deg) "
