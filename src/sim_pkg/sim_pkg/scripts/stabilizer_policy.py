@@ -9,7 +9,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState, Imu
 from std_msgs.msg import String
 
-ACTION_SCALE = 60.0
+ACTION_SCALE = 40.0
 MAX_CMD = 999.0
 MAX_DV_PER_S = 10000000.0
 CTRL_HZ = 60.0
@@ -38,7 +38,7 @@ class BracketBotPolicy(Node):
         self.sub_js = self.create_subscription(
             JointState, "/joint_states", self.joint_state_cb, 10
         )
-        self.sub_imu = self.create_subscription(Imu, "/imu/data", self.imu_cb, 10)
+        self.sub_imu = self.create_subscription(Imu, "/imu/data_raw", self.imu_cb, 10)
 
         self.debug_pub = self.create_publisher(String, "/bb_policy_debug", 10)
         self.cmd_pub = self.create_publisher(JointState, "/wheel_vel_cmd", 10)
@@ -113,7 +113,7 @@ class BracketBotPolicy(Node):
         pitch, wz = self.read_obs_from_imu()
         if pitch is None:
             return
-        print(wz) 
+        # print(wz) 
 
         abs_pitch = abs(pitch)
 
@@ -186,6 +186,8 @@ class BracketBotPolicy(Node):
 
         cmd_left = max(-MAX_CMD, min(MAX_CMD, a_left * ACTION_SCALE))
         cmd_right = max(-MAX_CMD, min(MAX_CMD, a_right * ACTION_SCALE))
+
+        print(cmd_left, cmd_right)
 
         # limiter dt
         dt = (now - self.prev_lim_t).nanoseconds * 1e-9
